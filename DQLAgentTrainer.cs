@@ -49,7 +49,7 @@ public class DQLAgentTrainer : MonoBehaviour
 
     // Variables for weights training
 
-     private String filePathForWeights = "Assets/Weights/network_weights.json";
+    
     private bool shouldLoadWeights = true;
     private int episodeCount = 0;
     private int loadWeightThreshold = 50;
@@ -63,12 +63,26 @@ public class DQLAgentTrainer : MonoBehaviour
         qNetwork = new NeuralNetwork(new int[] { inputSize, 64, 64, outputSize });
         targetNetwork = new NeuralNetwork(new int[] { inputSize, 64, 64, outputSize });
 
-        if (shouldLoadWeights)
+         if (shouldLoadWeights)
         {
-            qNetwork.LoadWeights(filePathForWeights);
-            targetNetwork.LoadWeights(filePathForWeights);
+            string savedWeights = PlayerPrefs.GetString("QNetworkWeights", "");
+
+            if (!string.IsNullOrEmpty(savedWeights))
+            {
+                qNetwork.WeightsFromJson(savedWeights);
+                targetNetwork.WeightsFromJson(savedWeights);
+            }
+        } else
+        {
+            targetNetwork.weights = qNetwork.weights;
         }
 
+
+        string weightsJson = qNetwork.WeightsToJson();
+        PlayerPrefs.SetString("QNetworkWeights", weightsJson);
+        Debug.Log(PlayerPrefs.GetString("QNetworkWeights"));
+        PlayerPrefs.Save(); // Make sure to save PlayerPrefs changes
+        Debug.Log("Weights saved to PlayerPrefs");
         enemy = GameObject.FindGameObjectWithTag("Enemy");
         trainer = GameObject.FindGameObjectWithTag("Trainer");
 
@@ -115,8 +129,12 @@ public class DQLAgentTrainer : MonoBehaviour
 
         if (ShouldLoadTargetWeights())
         {
-            qNetwork.LoadWeights(filePathForWeights);
-            targetNetwork.LoadWeights(filePathForWeights);
+            string weightsJson = qNetwork.WeightsToJson();
+            targetNetwork.weights = qNetwork.weights;
+            PlayerPrefs.SetString("QNetworkWeights", weightsJson);
+            PlayerPrefs.Save(); // Make sure to save PlayerPrefs changes
+            Debug.Log("Weights saved to PlayerPrefs.");
+            Debug.Log(weightsJson);  
         }
         
     }

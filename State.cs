@@ -194,7 +194,7 @@ public class AttackState : State
 public class RetreatState : State
 {
     private float safeDistance = 30.0f;
-    private float retreatSpeed = 10.0f;
+    private float retreatSpeed = 20.0f;
     
     
 
@@ -407,7 +407,7 @@ public class StateMachine {
 
     public float lastShootTime;
 
-    public float shootingInterval = 1.0f; // Time between shots
+    public float shootingInterval = 0.3f; // Time between shots
 
     public float lastActionTime;
 
@@ -454,7 +454,7 @@ public class StateMachine {
             currentState.Tick();
 
             // Comment out CheckTransition for DQL Agent implementation
-            //currentState.CheckTransition(); // Check for transitions
+            currentState.CheckTransition(); // Check for transitions
         }
     }
 }

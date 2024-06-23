@@ -51,7 +51,7 @@ public class Gun : MonoBehaviour
            return true;
 
         }
-        Debug.Log("Can't shoot yet....");
+        //Debug.Log("Can't shoot yet....");
         return false;
     }
 }

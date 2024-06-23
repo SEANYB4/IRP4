@@ -14,14 +14,15 @@ public class HealthBar : MonoBehaviour
         
        
         originalWidth = healthBarFill.rectTransform.sizeDelta.x;
+        player = GameObject.FindGameObjectWithTag("Player");
+        playerHealth = player.GetComponent<PlayerHealth>();
        
     }
 
     // Update is called once per frame
     void Update()
     {
-        player = GameObject.FindGameObjectWithTag("Player");
-        playerHealth = player.GetComponent<PlayerHealth>();
+        
         UpdateHealthBar();
     }
 
@@ -30,11 +31,14 @@ public class HealthBar : MonoBehaviour
         // Ensure that playerHealthComponent and healthBarFill are not null
         if (playerHealth != null && healthBarFill != null)
         {
+            
+           
             float healthPercentage = playerHealth.health / playerHealth.maxHealth;
             
             // Calculate the new width based on the fill area's original width
             
             float newWidth = healthPercentage * originalWidth;
+            
 
             // Update the RectTransform of the healthBarFill
             healthBarFill.rectTransform.sizeDelta = new Vector2(newWidth, healthBarFill.rectTransform.sizeDelta.y);

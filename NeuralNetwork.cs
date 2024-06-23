@@ -13,7 +13,7 @@ public class NeuralNetwork
 
     private int[] layers;
     private float[][] neurons;
-    private float[][][] weights;
+    public float[][][] weights;
     private System.Random random;
 
     float learningRate = 0.01f;
@@ -151,38 +151,31 @@ public class NeuralNetwork
 
 
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-
     // Method to save weights
-    public void SaveWeights(string filePath)
+    public string WeightsToJson()
     {
-        string json = JsonUtility.ToJson(new WeightsContainer { Weights = FlattenWeights()});
-        File.WriteAllText(filePath, json);
-        UnityEngine.Debug.Log("Weights saved to " + filePath);
+        // Serialize weights to JSON string
+        WeightsContainer container = new WeightsContainer
+        {
+            Weights = FlattenWeights()
+        };
+
+        return JsonUtility.ToJson(container);
     }
 
 
-    // Method to load weights
 
-    public void LoadWeights(string filePath)
+    public void WeightsFromJson(string json)
     {
+        // Deserialize weights from JSON string
 
-        if (File.Exists(filePath))
+        WeightsContainer container = JsonUtility.FromJson<WeightsContainer>(json);
+        if (container != null && container.Weights != null)
         {
-            string json = File.ReadAllText(filePath);
-            WeightsContainer container = JsonUtility.FromJson<WeightsContainer>(json);
             UnflattenWeights(container.Weights);
-            UnityEngine.Debug.Log("Weights loaded from " + filePath);
+        } else
+        {
+            UnityEngine.Debug.LogError("Failed to load weights from JSON.");
         }
     }
 

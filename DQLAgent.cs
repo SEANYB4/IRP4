@@ -16,7 +16,7 @@ public class DQLAgent : MonoBehaviour
     public int inputSize = 3; // Define according to your specific environment
     private int outputSize = 5; // Define according to your specific environment
     float discountFactor = 0.9f; // Emphasize or de-emphasize future rewards
-    float explorationRate = 2.0f;
+    float explorationRate = 0.2f;
     float explorationDecay = 0.995f;
     float minExplorationRate = 0.01f;
     List<float[]> stateMemory = new List<float[]>(); // S
@@ -24,9 +24,11 @@ public class DQLAgent : MonoBehaviour
     List<float> rewardMemory = new List<float>(); // R
     List<float[]> nextStateMemory = new List<float[]>(); // S1
 
-    public float lastStateChange;
+    
 
-    public float stateChangeMinTime = 3.0f;
+   
+
+ 
 
 
     public int batchSize = 32; // The size of the batch to train on each frame
@@ -35,13 +37,13 @@ public class DQLAgent : MonoBehaviour
 
     // Variables for saving weights
 
-    private String filePathForWeights = "Assets/Weights/network_weights.json";
     private int episodeCount = 0;
 
 
     private bool shouldLoadWeights = true;
+    
     private int loadWeightThreshold = 50;
-    private int saveWeightThreshold = 50;
+    
     
 
     // To reference other scripts
@@ -52,13 +54,19 @@ public class DQLAgent : MonoBehaviour
 
 
 
-    // Reference to state machine
-    private StateMachine stateMachine;
+  
+
+    // Reference to EnemyDQLController
+
+    private EnemyDQLController enemyDQLController;
 
 
-    // Idling variables
+    // Action change
 
-    private const float idlingThreshold = 4.0f;
+    public float actionChangeThreshold = 1.0f;
+
+    public float lastActionChange;
+    
 
     
     private float resetHeight = -10f; // Height at which the enemy will reset
@@ -75,19 +83,39 @@ public class DQLAgent : MonoBehaviour
 
         if (shouldLoadWeights)
         {
-            qNetwork.LoadWeights(filePathForWeights);
-            targetNetwork.LoadWeights(filePathForWeights); // Initialize target network with the same weights
+            string savedWeights = PlayerPrefs.GetString("QNetworkWeights", "");
+
+            if (!string.IsNullOrEmpty(savedWeights))
+            {
+                qNetwork.WeightsFromJson(savedWeights);
+                targetNetwork.WeightsFromJson(savedWeights);
+            }
+        } else
+        {
+            Debug.Log("No Weights to Load....");
+            targetNetwork.weights = qNetwork.weights;
         }
 
-        qNetwork.SaveWeights(filePathForWeights);
+
+         
+
+
+        string weightsJson = qNetwork.WeightsToJson();
+        PlayerPrefs.SetString("QNetworkWeights", weightsJson);
+        Debug.Log(PlayerPrefs.GetString("QNetworkWeights"));
+        PlayerPrefs.Save(); // Make sure to save PlayerPrefs changes
+        Debug.Log("Weights saved to PlayerPrefs");
+
 
         player = GameObject.FindGameObjectWithTag("Player");
         enemy = GameObject.FindGameObjectWithTag("Enemy");
         
 
-        stateMachine = new StateMachine();
+        enemyDQLController = enemy.GetComponent<EnemyDQLController>();
 
-        stateMachine.ChangeState(new ChaseState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine)); // Start in the chase state
+        
+        lastActionChange = Time.time;
+        
     }
 
 
@@ -117,22 +145,27 @@ public class DQLAgent : MonoBehaviour
 
 
         // Method to be called every frame (or decision step)
-        float[] currentState = GetStateFromEnvironment();
-        int action = ChooseAction(currentState);
 
-        if (Time.time > lastStateChange + stateChangeMinTime) 
-        {
-            lastStateChange = Time.time;
-            PerformAction(action);
-        }
+
+        //if (Time.time > lastActionChange + actionChangeThreshold)
+        //{
+
         
-        float reward = GetRewardFromEnvironment();
-        float[] nextState = GetStateFromEnvironment();
+            float[] currentState = GetStateFromEnvironment();
+            int action = ChooseAction(currentState);
+            PerformAction(action);
+            float reward = GetRewardFromEnvironment();
+            float[] nextState = GetStateFromEnvironment();
+            Remember(currentState, action, reward, nextState);
+            Replay(); // Train on a mini-batch every frame
+        //}
+        
+    
+            
+        
 
-        Remember(currentState, action, reward, nextState);
-        Replay(); // Train on a mini-batch every frame
-
-        stateMachine.Update();
+        
+        
 
 
 
@@ -142,9 +175,15 @@ public class DQLAgent : MonoBehaviour
         
         if (ShouldLoadTargetWeights())
         {
-            targetNetwork.LoadWeights(filePathForWeights);
-            qNetwork.SaveWeights(filePathForWeights);
-            Debug.Log("Weights saved.");   
+            string weightsJson = qNetwork.WeightsToJson();
+            targetNetwork.weights = qNetwork.weights;
+            PlayerPrefs.SetString("QNetworkWeights", weightsJson);
+            
+            
+            //Debug.Log(weightsJson);  
+
+            PlayerPrefs.Save(); // Make sure to save PlayerPrefs changes
+
         }
         
     }
@@ -154,7 +193,7 @@ public class DQLAgent : MonoBehaviour
 
     int ChooseAction(float[] state)
     {
-
+        
         if (UnityEngine.Random.value < explorationRate)
         {
             return UnityEngine.Random.Range(0, outputSize); // Random action    
@@ -167,6 +206,7 @@ public class DQLAgent : MonoBehaviour
             // Print Q Values
             //for (int i = 0; i < qValues.Length; i++)
             //{
+                
               //  Debug.Log(qValues[i]);
             //}
             
@@ -187,7 +227,7 @@ public class DQLAgent : MonoBehaviour
 
     void Replay()
     {
-        
+        // Debug.Log(stateMemory.Count);
         if (stateMemory.Count > batchSize)
         {
             List<int> sampleIndices = Enumerable.Range(0, stateMemory.Count).OrderBy(x => UnityEngine.Random.value).Take(batchSize).ToList();
@@ -257,23 +297,28 @@ public class DQLAgent : MonoBehaviour
         {
 
             case 0:
-                stateMachine.ChangeState(new HideInCoverState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine));
+                enemyDQLController.TryShoot();
+                lastActionChange = Time.time;
                 break;
 
             case 1:
-                stateMachine.ChangeState(new AttackState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine));
+                enemyDQLController.Heal();
+                lastActionChange = Time.time;
                 break;
 
             case 2:
-                stateMachine.ChangeState(new RetreatState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine));
+                enemyDQLController.Chase();
+                lastActionChange = Time.time;
                 break;
 
             case 3:
-                stateMachine.ChangeState(new TakeCoverState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine));
+                enemyDQLController.Retreat();
+                lastActionChange = Time.time;
                 break;
 
             case 4:
-                stateMachine.ChangeState(new ChaseState(gameObject, GameObject.FindGameObjectWithTag("Player").transform, stateMachine));
+                enemyDQLController.MoveToCover();
+                lastActionChange = Time.time;
                 break;
 
             default:
@@ -323,26 +368,13 @@ public class DQLAgent : MonoBehaviour
             reward -= 0.01f;
         }
 
-    if (Time.time - stateMachine.lastActionTime > idlingThreshold)
-    {
-        reward -= 0.01f; // Reduced penalty for idling
-    }
 
     return reward;
 }
 
 
 
-public bool ShouldSaveWeights()
-{
-    if (episodeCount > saveWeightThreshold)
-    {
-        episodeCount = 0;
-        return true;
-    }
-    episodeCount++;
-    return false;
-}
+
 
 public bool ShouldLoadTargetWeights()
 {
@@ -355,5 +387,6 @@ public bool ShouldLoadTargetWeights()
     return false;
 }
    
+
     
 }
